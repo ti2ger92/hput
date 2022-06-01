@@ -1,10 +1,8 @@
 package javascript
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
-	"strings"
 
 	v8 "rogchap.com/v8go"
 )
@@ -115,18 +113,41 @@ func cookiesToValue(vm *v8.Isolate, ctx *v8.Context, cs []*http.Cookie) (*v8.Val
 	return obj.Value, err
 }
 
-// parseToValue converts any object that can be json.Marshal'ed to a string,
-// then parses it in the engine
-func parseToValue(vm *v8.Isolate, ctx *v8.Context, in interface{}) (*v8.Value, error) {
-	bytes, err := json.Marshal(in)
+// valuesMapObject convert a map[string][]string to a v8go object
+func valuesMapObject(vm *v8.Isolate, ctx *v8.Context, aMap map[string][]string) (*v8.Object, error) {
+	tmpl := v8.NewObjectTemplate(vm)
+	obj, err := tmpl.NewInstance(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("can't create string object from template for map: %w", err)
 	}
-	// TODO: handle backslashes in headers, probably with a more v8go native solution to header.Header
-	s := fmt.Sprintf("JSON.parse(`%s`)", strings.Replace(string(bytes), `\"`, `\\"`, -1))
-	res, err := ctx.RunScript(s, "parse_to_value")
+	for key, val := range aMap {
+		strArr, err := strArrayObject(ctx, val)
+		if err != nil {
+			return nil, fmt.Errorf("could not create string array for map: %w", err)
+		}
+		obj.Set(key, strArr.Value)
+	}
+
+	return obj, nil
+}
+
+// strArrayObject create a string array from object
+func strArrayObject(ctx *v8.Context, arr []string) (*v8.Object, error) {
+	// TODO: compile this
+	arrayValue, err := ctx.RunScript("[]", "new_array")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("could not create initial array value %w", err)
 	}
-	return res.Object().Value, err
+	obj := arrayValue.Object()
+
+	err = obj.Set("length", int32(len(arr)))
+	if err != nil {
+		return nil, fmt.Errorf("could not set length of array object %w", err)
+	}
+
+	for i, str := range arr {
+		obj.SetIdx(uint32(i), str)
+	}
+
+	return obj, nil
 }

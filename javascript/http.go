@@ -36,11 +36,11 @@ func (e *express) attachRequest(r *http.Request) error {
 			}
 			return val
 		}
-		arr, err := parseToValue(e.RunVM, e.ctx, h)
+		arrObj, err := strArrayObject(e.ctx, h)
 		if err != nil {
 			panic(err)
 		}
-		return arr
+		return arrObj.Value
 	})
 	req.Set("get", getFn)
 	req.Set("header", getFn)
@@ -68,12 +68,12 @@ func (e *express) attachRequest(r *http.Request) error {
 	}
 	reqObj.Set("cookies", cVal)
 	if r.Header != nil {
-		hVal, err := parseToValue(e.RunVM, e.ctx, r.Header)
+		hObj, err := valuesMapObject(e.RunVM, e.ctx, r.Header)
 		if err != nil {
 			e.Logger.Errorf("javascript.attachRequest(): error obtaining the incoming headers: %+v", err)
 			return fmt.Errorf("could not get incoming headers: %w", err)
 		}
-		reqObj.Set("headers", hVal)
+		reqObj.Set("headers", hObj.Value)
 	}
 	reqObj.Set("hostname", r.Host)
 	reqObj.Set("ip", r.RemoteAddr)
@@ -82,12 +82,12 @@ func (e *express) attachRequest(r *http.Request) error {
 	reqObj.Set("protocol", strings.ToLower(r.Proto))
 	q := r.URL.Query()
 	if q != nil {
-		qVal, err := parseToValue(e.RunVM, e.ctx, q)
+		qObj, err := valuesMapObject(e.RunVM, e.ctx, q)
 		if err != nil {
 			e.Logger.Errorf("javascript.attachRequest(): error obtaining the incoming query: %+v", err)
 			return fmt.Errorf("could not get incoming query: %w", err)
 		}
-		reqObj.Set("query", qVal)
+		reqObj.Set("query", qObj.Value)
 	}
 	global := e.ctx.Global()
 	global.Set("request", reqObj)
