@@ -13,6 +13,7 @@ type Httpserver struct {
 	Service  Service // Handler functions for activities performed
 	Logger   Logger
 	NonLocal bool // Reject any traffic that doesn't come from local traffic
+	Locked   bool // Pass all requests to run and don't put any paths
 }
 
 // Logger logs out.
@@ -62,6 +63,10 @@ func (s *Httpserver) handle(w http.ResponseWriter, r *http.Request) {
 		s.options(w, r)
 	case "PUT":
 		s.Logger.Debug("Handling PUT request")
+		if s.Locked {
+			s.run(w, r)
+			return
+		}
 		s.put(w, r)
 	default:
 		s.Logger.Debugf("Handling other request request")

@@ -32,6 +32,7 @@ func main() {
 	allTrafficPtr := flag.Bool("nonlocal", false, "allow traffic which is not local")
 	storagePtr := flag.String("storage", "local", "which storage to use, currently supported: local and memory")
 	fileNamePtr := flag.String("filename", "hput.db", "if using local storage, name of the database file to create and use")
+	lockedPtr := flag.Bool("locked", false, "pass all requests to run, do not store any paths")
 	flag.Parse()
 	var saver Saver
 	switch *storagePtr {
@@ -41,14 +42,15 @@ func main() {
 			l.Errorf("main.Main(): could not initialize discsaver: %v", err)
 			return
 		}
+		l.Debug("Initialized local saver")
 	case "memory":
 		saver = &mapsaver.MapSaver{
 			Logger: &l,
 		}
+		l.Debug("Initialized map saver")
 	default:
 		l.Errorf("main.Main(): incorrect storage parameter passed, use 'local' or 'memory'")
 	}
-	l.Debug("Initialized map saver")
 	js := javascript.New(&l)
 	l.Debug("Initialized javascript module")
 	s := service.Service{
@@ -62,6 +64,7 @@ func main() {
 		Service:  &s,
 		Logger:   &l,
 		NonLocal: *allTrafficPtr,
+		Locked:   *lockedPtr,
 	}
 	if *allTrafficPtr {
 		l.Debug("Allowing nonlocal traffic")

@@ -67,6 +67,7 @@ Then, in your browser, input the URL: `http://localhost/test`
 | `-nonlocal` | whether to allow traffic from a source other than localhost | `false` | `true` |
 | `-storage` | which storage to use, currently supported: local disc and memory, which will be deleted whenever the server is shut down | `local` | `memory` |
 | `-filename` | if using local storage, name of the database file to create and use. | `hput.db` | any valid file path |
+| `-locked` | do not accept any http `PUT` commands to write, pass all commands to runnables | `false` | `true` |
 
 
 ## Potential use cases
