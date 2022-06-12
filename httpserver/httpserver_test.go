@@ -2,6 +2,7 @@ package httpserver
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"hput"
 	"io"
@@ -27,7 +28,7 @@ func (t *TestLogger) Infof(msg string, args ...interface{}) {}
 
 type TestService struct{}
 
-func (t *TestService) Put(r *http.Request) (*hput.PutResult, error) {
+func (t *TestService) Put(ctx context.Context, r *http.Request) (*hput.PutResult, error) {
 	p, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading incoming payload: %v", err))
@@ -38,7 +39,7 @@ func (t *TestService) Put(r *http.Request) (*hput.PutResult, error) {
 	}, nil
 }
 
-func (t *TestService) Run(w http.ResponseWriter, r *http.Request) error {
+func (t *TestService) Run(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
 	w.Write([]byte(fmt.Sprintf("passed request with path %s to Run", r.URL.Path)))
 	return nil
 }

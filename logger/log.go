@@ -1,15 +1,37 @@
 package logger
 
-import "go.uber.org/zap"
+import (
+	"errors"
+
+	"go.uber.org/zap"
+)
 
 // Logger logs out.
 type Logger struct {
 	logger *zap.Logger
 }
 
-func New() (Logger, error) {
+const (
+	DebugLevel = "debug"
+	InfoLevel  = "info"
+	WarnLevel  = "warn"
+	ErrorLevel = "error"
+)
+
+func New(level string) (Logger, error) {
 	cfg := zap.NewDevelopmentConfig()
-	cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	switch level {
+	case DebugLevel:
+	case "", InfoLevel:
+		cfg.Level = zap.NewAtomicLevelAt(zap.InfoLevel)
+	case WarnLevel:
+		cfg.Level = zap.NewAtomicLevelAt(zap.WarnLevel)
+	case ErrorLevel:
+		cfg.Level = zap.NewAtomicLevelAt(zap.ErrorLevel)
+	default:
+		return Logger{}, errors.New("Invalid level passed to logger.New")
+	}
+
 	logger, err := cfg.Build()
 	if err != nil {
 		return Logger{}, err

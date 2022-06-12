@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"hput"
@@ -9,31 +10,37 @@ import (
 	"hput/javascript"
 	"hput/logger"
 	"hput/mapsaver"
+	"hput/s3saver"
 	"hput/service"
 	"net/url"
 )
 
 // Saver Saves stateful data for the service
 type Saver interface {
-	SaveText(s string, p url.URL, r *hput.PutResult) error
-	GetRunnable(p url.URL) (hput.Runnable, error)
-	SendRunnables(p string, runnables chan<- hput.Runnable, done chan<- bool) error
-	SaveCode(s string, p url.URL, r *hput.PutResult) error
-	SaveBinary(b []byte, p url.URL, r *hput.PutResult) error
+	SaveText(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
+	GetRunnable(ctx context.Context, p url.URL) (hput.Runnable, error)
+	SendRunnables(ctx context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error
+	SaveCode(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
+	SaveBinary(ctx context.Context, b []byte, p url.URL, r *hput.PutResult) error
 }
 
 func main() {
-	l, err := logger.New()
-	if err != nil {
-		fmt.Printf("Unable to initialize logger, stopping, %+v", err)
-	}
-
+	ctx := context.Background()
 	portPtr := flag.Int("port", 80, "an int")
 	allTrafficPtr := flag.Bool("nonlocal", false, "allow traffic which is not local")
 	storagePtr := flag.String("storage", "local", "which storage to use, currently supported: local and memory")
 	fileNamePtr := flag.String("filename", "hput.db", "if using local storage, name of the database file to create and use")
 	lockedPtr := flag.Bool("locked", false, "pass all requests to run, do not store any paths")
+	logLvlPtr := flag.String("log", "info", "which log level to use, options are: debug, info, warn, error")
+	bucketPtr := flag.String("bucket", "", "if using s3 storage, the bucket to use")
+	prefixPtr := flag.String("prefix", "", "if using s3 storage, the prefix to use")
 	flag.Parse()
+
+	l, err := logger.New(*logLvlPtr)
+	if err != nil {
+		fmt.Printf("Unable to initialize logger, stopping, %+v", err)
+	}
+
 	var saver Saver
 	switch *storagePtr {
 	case "local":
@@ -48,6 +55,8 @@ func main() {
 			Logger: &l,
 		}
 		l.Debug("Initialized map saver")
+	case "s3":
+		saver, err = s3saver.New(ctx, &l, *bucketPtr, *&s3saver.PrefixOption{Prefix: *prefixPtr})
 	default:
 		l.Errorf("main.Main(): incorrect storage parameter passed, use 'local' or 'memory'")
 	}

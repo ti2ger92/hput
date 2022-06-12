@@ -2,6 +2,7 @@ package discsaver
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"hput"
@@ -60,7 +61,7 @@ func (s *Saver) Shutdown() {
 }
 
 // SaveText saves a text value to a path
-func (sa *Saver) SaveText(s string, p url.URL, r *hput.PutResult) error {
+func (sa *Saver) SaveText(_ context.Context, s string, p url.URL, r *hput.PutResult) error {
 	ru := hput.Runnable{
 		Type: hput.Text,
 		Text: s,
@@ -68,7 +69,7 @@ func (sa *Saver) SaveText(s string, p url.URL, r *hput.PutResult) error {
 	return sa.saveRunnable(ru, p, r)
 }
 
-func (sa *Saver) SaveCode(s string, p url.URL, r *hput.PutResult) error {
+func (sa *Saver) SaveCode(_ context.Context, s string, p url.URL, r *hput.PutResult) error {
 	ru := hput.Runnable{
 		Type: hput.Js,
 		Text: s,
@@ -77,7 +78,7 @@ func (sa *Saver) SaveCode(s string, p url.URL, r *hput.PutResult) error {
 }
 
 // SaveBinary saves a binary value to a path
-func (sa *Saver) SaveBinary(b []byte, p url.URL, r *hput.PutResult) error {
+func (sa *Saver) SaveBinary(_ context.Context, b []byte, p url.URL, r *hput.PutResult) error {
 	ru := hput.Runnable{
 		Type:   hput.Binary,
 		Binary: b,
@@ -113,7 +114,7 @@ func (sa *Saver) saveRunnable(ru hput.Runnable, p url.URL, r *hput.PutResult) er
 }
 
 // GetRunnable returns the runnable from a path
-func (sa *Saver) GetRunnable(p url.URL) (hput.Runnable, error) {
+func (sa *Saver) GetRunnable(_ context.Context, p url.URL) (hput.Runnable, error) {
 	var runnableBytes []byte
 	sa.Logger.Debugf("discsaver.GetRunnable(): retrieving runnable at url %+v", p)
 	err := sa.Db.View(func(tx *bolt.Tx) error {
@@ -141,7 +142,7 @@ func (sa *Saver) GetRunnable(p url.URL) (hput.Runnable, error) {
 }
 
 // SendRunnables returns all runnables from the database
-func (sa *Saver) SendRunnables(p string, runnables chan<- hput.Runnable, done chan<- bool) error {
+func (sa *Saver) SendRunnables(_ context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error {
 	defer func() { done <- true }()
 	err := sa.Db.View(func(tx *bolt.Tx) error {
 		c := tx.Bucket(bucketName).Cursor()

@@ -1,6 +1,7 @@
 package httpserver
 
 import (
+	"context"
 	"fmt"
 	"hput"
 	"net/http"
@@ -29,8 +30,8 @@ type Logger interface {
 // It should save items into from Put and output
 // results to the http.ResponseWriter on Run.
 type Service interface {
-	Put(r *http.Request) (*hput.PutResult, error)
-	Run(w http.ResponseWriter, r *http.Request) error
+	Put(ctx context.Context, r *http.Request) (*hput.PutResult, error)
+	Run(ctx context.Context, w http.ResponseWriter, r *http.Request) error
 }
 
 // Serve starts the http server and it starts listening.
@@ -45,11 +46,12 @@ func (s *Httpserver) Serve() {
 
 // handle will accept a request and write outputs to the http.ResponseWriter
 func (s *Httpserver) handle(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 	s.Logger.Infof("request: %#v", r)
 	// only allow local traffic unless NonLocal is allowed
 	if !s.NonLocal {
 		caller := strings.Split(r.RemoteAddr, ":")[0]
-		if caller != "[" && caller != "localhost" {
+		if caller != "[" && caller != "localhost" && caller != "127.0.0.1" {
 			s.Logger.Warnf("invalid caller: %s tried to call but was rejected because only local traffic allowed", r.RemoteAddr)
 			w.WriteHeader(http.StatusForbidden)
 			w.Write([]byte("This can only be called from local"))
@@ -64,13 +66,13 @@ func (s *Httpserver) handle(w http.ResponseWriter, r *http.Request) {
 	case "PUT":
 		s.Logger.Debug("Handling PUT request")
 		if s.Locked {
-			s.run(w, r)
+			s.run(ctx, w, r)
 			return
 		}
-		s.put(w, r)
+		s.put(ctx, w, r)
 	default:
 		s.Logger.Debugf("Handling other request request")
-		s.run(w, r)
+		s.run(ctx, w, r)
 	}
 }
 
@@ -90,9 +92,9 @@ func (s *Httpserver) options(w http.ResponseWriter, r *http.Request) {
 
 // put handles all put requests. It sanitizes them and passes them on to
 // the Service.
-func (s *Httpserver) put(w http.ResponseWriter, r *http.Request) {
+func (s *Httpserver) put(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	s.Logger.Debugf("processing PUT request")
-	putResult, err := s.Service.Put(r)
+	putResult, err := s.Service.Put(ctx, r)
 	if err != nil {
 		s.Logger.Warnf("error PUT request, %v", err)
 		w.WriteHeader(http.StatusBadRequest)
@@ -112,10 +114,10 @@ func (s *Httpserver) put(w http.ResponseWriter, r *http.Request) {
 
 // run handles any requests that aren't PUT or OPTIONS (for example, get)
 // it sanitizes the request and passes it to the Service.
-func (s *Httpserver) run(w http.ResponseWriter, r *http.Request) {
+func (s *Httpserver) run(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	defer r.Body.Close()
 	s.Logger.Debugf("processing RUN")
-	if err := s.Service.Run(w, r); err != nil {
+	if err := s.Service.Run(ctx, w, r); err != nil {
 		s.Logger.Debugf("processing RUN error, %v", err)
 		w.WriteHeader(http.StatusInternalServerError)
 		w.Write([]byte("Error Unexpected error"))

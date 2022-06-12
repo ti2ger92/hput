@@ -1,6 +1,7 @@
 package discsaver
 
 import (
+	"context"
 	"encoding/json"
 	"hput"
 	"net/url"
@@ -64,7 +65,7 @@ func Test_SaveText(t *testing.T) {
 			defer sa.Shutdown()
 			assert.NoError(t, err)
 			r := &hput.PutResult{}
-			sa.SaveText(test.s, test.p, r)
+			sa.SaveText(context.Background(), test.s, test.p, r)
 			assert.Equal(t, test.res, *r)
 			var foundBytes []byte
 			sa.Db.View(func(tx *bbolt.Tx) error {
@@ -124,7 +125,7 @@ func Test_SaveCode(t *testing.T) {
 			defer sa.Shutdown()
 			assert.NoError(t, err)
 			r := &hput.PutResult{}
-			sa.SaveCode(test.c, test.p, r)
+			sa.SaveCode(context.Background(), test.c, test.p, r)
 			assert.Equal(t, test.res, *r)
 			var foundBytes []byte
 			sa.Db.View(func(tx *bbolt.Tx) error {
@@ -174,7 +175,7 @@ func Test_SaveBinary(t *testing.T) {
 			defer sa.Shutdown()
 			assert.NoError(t, err)
 			r := &hput.PutResult{}
-			sa.SaveBinary(test.b, test.p, r)
+			sa.SaveBinary(context.Background(), test.b, test.p, r)
 			assert.Equal(t, test.res, *r)
 			var foundBytes []byte
 			sa.Db.View(func(tx *bbolt.Tx) error {
@@ -250,7 +251,7 @@ func Test_GetRunnable(t *testing.T) {
 				assert.NoError(t, err)
 				return err
 			})
-			foundRunnable, err := sa.GetRunnable(test.p)
+			foundRunnable, err := sa.GetRunnable(context.Background(), test.p)
 			assert.NoError(t, err)
 			assert.Equal(t, test.expRunnable, foundRunnable)
 		})
@@ -351,7 +352,7 @@ func Test_SendRunnables(t *testing.T) {
 			runnablesChan := make(chan hput.Runnable, 1)
 			doneChan := make(chan bool, 1)
 			go func() {
-				sa.SendRunnables(test.p, runnablesChan, doneChan)
+				sa.SendRunnables(context.Background(), test.p, runnablesChan, doneChan)
 			}()
 			var done bool
 			for done == false {

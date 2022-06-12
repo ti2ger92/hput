@@ -1,6 +1,7 @@
 package mapsaver
 
 import (
+	"context"
 	"hput"
 	"net/url"
 	"strings"
@@ -31,7 +32,7 @@ type MapSaver struct {
 	Logger Logger
 }
 
-func (m *MapSaver) SaveText(s string, p url.URL, r *hput.PutResult) error {
+func (m *MapSaver) SaveText(_ context.Context, s string, p url.URL, r *hput.PutResult) error {
 	m.Logger.Debugf("processing SaveText with string: %s and path: %s", s, p)
 	_, ok := texts[p.Path]
 	if ok {
@@ -42,7 +43,7 @@ func (m *MapSaver) SaveText(s string, p url.URL, r *hput.PutResult) error {
 	return nil
 }
 
-func (m *MapSaver) SaveCode(s string, p url.URL, r *hput.PutResult) error {
+func (m *MapSaver) SaveCode(_ context.Context, s string, p url.URL, r *hput.PutResult) error {
 	m.Logger.Debugf("processing SaveCode with string: %s and path: %s", s, p.String())
 	_, ok := texts[p.Path]
 	if ok {
@@ -53,7 +54,7 @@ func (m *MapSaver) SaveCode(s string, p url.URL, r *hput.PutResult) error {
 	return nil
 }
 
-func (m *MapSaver) SaveBinary(b []byte, p url.URL, r *hput.PutResult) error {
+func (m *MapSaver) SaveBinary(_ context.Context, b []byte, p url.URL, r *hput.PutResult) error {
 	m.Logger.Debugf("processing SaveBinary with length %d and path: %s", len(b), p.String())
 	_, ok := texts[p.Path]
 	if ok {
@@ -64,7 +65,7 @@ func (m *MapSaver) SaveBinary(b []byte, p url.URL, r *hput.PutResult) error {
 	return nil
 }
 
-func (m *MapSaver) GetRunnable(p url.URL) (hput.Runnable, error) {
+func (m *MapSaver) GetRunnable(_ context.Context, p url.URL) (hput.Runnable, error) {
 	m.Logger.Debugf("retrieving text at path %s", p.Path)
 	r, ok := texts[p.Path]
 	if !ok {
@@ -77,7 +78,7 @@ func (m *MapSaver) GetRunnable(p url.URL) (hput.Runnable, error) {
 	}, nil
 }
 
-func (m *MapSaver) SendRunnables(p string, runnables chan<- hput.Runnable, done chan<- bool) error {
+func (m *MapSaver) SendRunnables(_ context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error {
 	for key, runnable := range texts {
 		if strings.HasPrefix(key, p) {
 			m.Logger.Debugf("Printing key: %s, prefix: %s", key, p)

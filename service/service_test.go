@@ -2,6 +2,7 @@ package service
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"hput"
 	"io"
@@ -17,17 +18,17 @@ type TestSaver struct {
 	GiveRunnable hput.Runnable
 }
 
-func (t *TestSaver) SaveText(s string, p url.URL, r *hput.PutResult) error {
+func (t *TestSaver) SaveText(ctx context.Context, s string, p url.URL, r *hput.PutResult) error {
 	r.Input = hput.Text
 	r.Message = fmt.Sprintf("Saved Text %s at %s", s, p.Path)
 	return nil
 }
 
-func (t *TestSaver) GetRunnable(p url.URL) (hput.Runnable, error) {
+func (t *TestSaver) GetRunnable(ctx context.Context, p url.URL) (hput.Runnable, error) {
 	return t.GiveRunnable, nil
 }
 
-func (t *TestSaver) SendRunnables(p string, runnables chan<- hput.Runnable, done chan<- bool) error {
+func (t *TestSaver) SendRunnables(ctx context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error {
 	runnables <- hput.Runnable{
 		Type: hput.Text,
 		Text: "aText",
@@ -37,13 +38,13 @@ func (t *TestSaver) SendRunnables(p string, runnables chan<- hput.Runnable, done
 	return nil
 }
 
-func (t *TestSaver) SaveCode(s string, p url.URL, r *hput.PutResult) error {
+func (t *TestSaver) SaveCode(ctx context.Context, s string, p url.URL, r *hput.PutResult) error {
 	r.Input = hput.Js
 	r.Message = fmt.Sprintf("Saved Js %s at %s", s, p.Path)
 	return nil
 }
 
-func (t *TestSaver) SaveBinary(b []byte, p url.URL, r *hput.PutResult) error {
+func (t *TestSaver) SaveBinary(ctx context.Context, b []byte, p url.URL, r *hput.PutResult) error {
 	r.Input = hput.Binary
 	r.Message = fmt.Sprintf("Saved Binary at %s", p.Path)
 	return nil
@@ -128,7 +129,7 @@ func TestPut(t *testing.T) {
 				Interpreter: i,
 				Logger:      &TestLogger{},
 			}
-			r, err := s.Put(test.req)
+			r, err := s.Put(context.Background(), test.req)
 			assert.NoError(t, err)
 			assert.Equal(t, test.res, r)
 		})
@@ -181,7 +182,7 @@ func TestRun(t *testing.T) {
 			req: &http.Request{
 				URL: &url.URL{Path: "/dump"},
 			},
-			dumpText: "//Dumping creation instructions v0.1\nvar xhr = new XMLHttpRequest();\nxhr.withCredentials = true;\nxhr.open(\"PUT\", \"http://localhost/pth\");\nxhr.send(`aText`);\n",
+			dumpText: "//Dumping creation instructions v0.2\nvar xhr = new XMLHttpRequest();\nxhr.withCredentials = true;\nxhr.open(\"PUT\", \"http://localhost/pth\");\nxhr.send(`aText`);\n",
 		},
 	}
 	for _, test := range tt {
@@ -194,7 +195,7 @@ func TestRun(t *testing.T) {
 				Logger:      &TestLogger{},
 			}
 			responseRecorder := httptest.NewRecorder()
-			err := s.Run(responseRecorder, test.req)
+			err := s.Run(context.Background(), responseRecorder, test.req)
 			assert.NoError(t, err)
 			assert.Equal(t, responseRecorder.Code, http.StatusOK)
 			switch test.runnable.Type {

@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"hput"
@@ -26,11 +27,11 @@ type runnable struct {
 
 // Saver Saves stateful data for the service
 type Saver interface {
-	SaveText(s string, p url.URL, r *hput.PutResult) error
-	GetRunnable(p url.URL) (hput.Runnable, error)
-	SendRunnables(p string, runnables chan<- hput.Runnable, done chan<- bool) error
-	SaveCode(s string, p url.URL, r *hput.PutResult) error
-	SaveBinary(b []byte, p url.URL, r *hput.PutResult) error
+	SaveText(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
+	SaveCode(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
+	SaveBinary(ctx context.Context, b []byte, p url.URL, r *hput.PutResult) error
+	GetRunnable(ctx context.Context, p url.URL) (hput.Runnable, error)
+	SendRunnables(ctx context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error
 }
 
 // Interpreter understands code
@@ -64,7 +65,7 @@ const (
 )
 
 // Put accepts a Put request and saves it
-func (s *Service) Put(r *http.Request) (*hput.PutResult, error) {
+func (s *Service) Put(ctx context.Context, r *http.Request) (*hput.PutResult, error) {
 	s.Logger.Debug("processing PUT service")
 	b, err := io.ReadAll(r.Body)
 	r.Body.Close()
@@ -81,17 +82,18 @@ func (s *Service) Put(r *http.Request) (*hput.PutResult, error) {
 		return nil, ErrPutToLogs
 	}
 	// Test whether input is a string by checking the first 200 characters for an invalid rune: �
-	str := string(b[:int(math.Min(200, float64(len(b))))])
-	if strings.ContainsRune(str, invalidRune) {
+	shortStr := string(b[:int(math.Min(200, float64(len(b))))])
+	if strings.ContainsRune(shortStr, invalidRune) {
 		s.Logger.Debug("got bytes that don't look like a string")
 		res := &hput.PutResult{
 			Input:   hput.Binary,
 			Message: "I think this is a binary file, saving it as such",
 		}
-		err := s.Saver.SaveBinary(b, *r.URL, res)
+		err := s.Saver.SaveBinary(ctx, b, *r.URL, res)
 		return res, err
 	}
 
+	str := string(b)
 	isCode, msg := s.Interpreter.IsCode(str)
 	if !isCode {
 		s.Logger.Debugf("processing PUT text service with text: %s to path: %s", str, r.URL.Path)
@@ -99,26 +101,26 @@ func (s *Service) Put(r *http.Request) (*hput.PutResult, error) {
 			Input:   hput.Text,
 			Message: msg,
 		}
-		err := s.Saver.SaveText(str, *r.URL, res)
+		err := s.Saver.SaveText(ctx, str, *r.URL, res)
 		return res, err
 	}
 	s.Logger.Debugf("processing PUT code service with text: %s to path: %s", str, r.URL.Path)
 	res := &hput.PutResult{
 		Input: hput.Js,
 	}
-	err = s.Saver.SaveCode(str, *r.URL, res)
+	err = s.Saver.SaveCode(ctx, str, *r.URL, res)
 	return res, err
 }
 
 // Run executes and whatever is at this path on the server. If text was saved that text is returned.
 // Code can write out to the http.ResponseWriter, and also return something to output.
-func (s *Service) Run(w http.ResponseWriter, r *http.Request) error {
+func (s *Service) Run(ctx context.Context, w http.ResponseWriter, r *http.Request) error {
 	if strings.ToLower(lastN(r.URL.Path, 5)) == "/dump" {
-		s.dumpPath(*r.URL, w)
+		s.dumpPath(ctx, *r.URL, w)
 		return nil
 	}
 	s.Logger.Debugf("processing RUN service with path, %s", r.URL.Path)
-	runnable, err := s.getPathRunnable(*r.URL)
+	runnable, err := s.getPathRunnable(ctx, *r.URL)
 	if err != nil {
 		s.Logger.Warnf("processing RUN service got an error, %+v", err)
 		return fmt.Errorf("Unexpected error running service at path: %s ,:%v", r.URL.Path, err)
@@ -151,20 +153,20 @@ func (s *Service) Run(w http.ResponseWriter, r *http.Request) error {
 	return nil
 }
 
-func (s *Service) dumpPath(p url.URL, w http.ResponseWriter) {
+func (s *Service) dumpPath(ctx context.Context, p url.URL, w http.ResponseWriter) {
 	runnablesChan := make(chan hput.Runnable)
 	doneChan := make(chan bool, 1)
 	pStr := p.Path[:len(p.Path)-5]
 	var err error
 	go func() {
 		s.Logger.Debugf("sending runnables for %s", pStr)
-		err = s.Saver.SendRunnables(pStr, runnablesChan, doneChan)
+		err = s.Saver.SendRunnables(ctx, pStr, runnablesChan, doneChan)
 	}()
 	if err != nil {
 		s.Logger.Errorf("got an error dumping from path %+v: %+v", p, err)
 		return
 	}
-	w.Write([]byte("//Dumping creation instructions v0.1\n"))
+	w.Write([]byte("//Dumping creation instructions v0.2\n"))
 	var dumpedFirst bool
 	for {
 		select {
@@ -198,9 +200,9 @@ func (s *Service) dumpPath(p url.URL, w http.ResponseWriter) {
 }
 
 // getPathRunnable retrieves the runnable at a path, if it exists. May return nil
-func (s *Service) getPathRunnable(p url.URL) (*runnable, error) {
+func (s *Service) getPathRunnable(ctx context.Context, p url.URL) (*runnable, error) {
 	s.Logger.Debugf("processing getPathRunnable with path, %#v", p)
-	val, err := s.Saver.GetRunnable(p)
+	val, err := s.Saver.GetRunnable(ctx, p)
 	if err != nil {
 		s.Logger.Errorf("service.getPathRunnable(): unexpected error retrieving a runnable: %+v", err)
 		return nil, fmt.Errorf("could not retrieve runnable: %w", err)
