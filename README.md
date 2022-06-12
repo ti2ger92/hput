@@ -1,5 +1,3 @@
-TODO: add animated graphics with AdvancedRestClient, finish examples
-
 # hput
 A standalone http server that you can program easily via http without knowing linux.
 - http PUT web pages, text, pictures 🖼️ 🎵🎞️ or whatever, then send a GET, POST, PATCH, or DELETE to the same path path to return your payload ✨.
