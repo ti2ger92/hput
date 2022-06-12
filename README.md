@@ -46,20 +46,9 @@ You can send a PUT request to your server to save something.
 
 Here is some Javascript that you can copy/paste. You can run javascript in browsers like Chrome [Chrome instructions](https://developer.chrome.com/docs/devtools/console/javascript/).
 ```
-// Boiler plate code to setup a request in javascript
-var xhr = new XMLHttpRequest();
-xhr.withCredentials = true;
-
-xhr.addEventListener("readystatechange", function() {
-  if(this.readyState === 4) {
-    console.log(this.responseText);
-  }
-});
-
-xhr.open("PUT", "http://localhost/test");
-xhr.setRequestHeader("Content-Type", "text/plain");
-
-xhr.send("Hello hput");
+var xhr = new XMLHttpRequest()
+xhr.open("PUT", "http://localhost/test")
+xhr.send("Hello hput")
 ```
 
 Then, in your browser, input the URL: `http://localhost/test`
