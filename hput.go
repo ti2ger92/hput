@@ -1,3 +1,4 @@
+// Package hput describes a web server that can be programmed via http PUT
 package hput
 
 import (
@@ -16,13 +17,14 @@ const (
 	Binary       = "Binary"
 )
 
-// FIXME: abstract this
+// PutResult shares the result of a save
 type PutResult struct {
 	Input     Input // type of input passed to the function
 	Overwrote bool
 	Message   string
 }
 
+// Runnable describes a path that can be run
 type Runnable struct {
 	Path   string // exact location of resource on this server
 	Type   Input  // details specific type of runnable

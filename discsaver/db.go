@@ -1,3 +1,5 @@
+// Package discsaver implements the hput.Saver interface
+// and stores data on a disc, leveraging go.etcd.io/bbolt
 package discsaver
 
 import (
@@ -17,11 +19,10 @@ var bucketName = []byte("hput")
 type Logger interface {
 	Debug(msg string)
 	Debugf(msg string, args ...interface{})
-	// Warnf(msg string, args ...interface{})
 	Errorf(msg string, args ...interface{})
 }
 
-// Saver can save save and retrieve for hput
+// Saver describes a database-based store which can save and retrieve for the hput server
 type Saver struct {
 	Db     *bolt.DB
 	Logger Logger
@@ -141,7 +142,7 @@ func (sa *Saver) GetRunnable(_ context.Context, p url.URL) (hput.Runnable, error
 	return *runnable, nil
 }
 
-// SendRunnables returns all runnables from the database
+// SendRunnables returns all runnables from the database with a prefix of the given path
 func (sa *Saver) SendRunnables(_ context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error {
 	defer func() { done <- true }()
 	err := sa.Db.View(func(tx *bolt.Tx) error {
