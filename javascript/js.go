@@ -87,17 +87,19 @@ func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error
 	global.Set("console", consoleObj)
 	val, err := ctx.RunScript(c, "your_function")
 	if err != nil {
-		j.Logger.Errorf("Got an error running the script")
+		j.Logger.Errorf("Got an error running the script: %+v", err)
 		return fmt.Errorf("got an error running the script: %w", err)
 	}
 	if val.IsObject() {
+		j.Logger.Debugf("response was object")
 		bytes, err := val.MarshalJSON()
 		if err != nil {
 			j.Logger.Errorf("Got an error outputting the string of a json response")
 			return fmt.Errorf("got an error outputting the string of a json response: %w", err)
 		}
 		w.Write(bytes)
-	} else if val.IsString() || val.IsObject() {
+	} else if val.IsString() || val.IsInt32() || val.IsBigInt() || val.IsBoolean() {
+		j.Logger.Debugf("response was primitive")
 		w.Write([]byte(val.String()))
 	}
 	return nil
