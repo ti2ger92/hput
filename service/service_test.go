@@ -77,10 +77,12 @@ func (t *TestLogger) Errorf(msg string, args ...interface{}) {}
 // TestPut tests that the service can accept PUT requests
 func TestPut(t *testing.T) {
 	tt := []struct {
-		name   string
-		req    *http.Request
-		isCode bool
-		res    *hput.PutResult
+		name         string
+		req          *http.Request
+		giveRunnable hput.Runnable
+		isCode       bool
+		res          *hput.PutResult
+		bodyContains string
 	}{
 		{
 			name: "Put Text",
@@ -108,6 +110,24 @@ func TestPut(t *testing.T) {
 			},
 		},
 		{
+			name: "Put Code text already existed",
+			req: &http.Request{
+				Method: http.MethodPut,
+				URL:    &url.URL{Path: "/pth"},
+				Body:   io.NopCloser(bytes.NewBufferString("return 1;")),
+			},
+			giveRunnable: hput.Runnable{
+				Type: hput.Text,
+				Text: "preexisting text",
+			},
+			isCode: true,
+			res: &hput.PutResult{
+				Input:   hput.Js,
+				Message: "Saved Js return 1; at /pth",
+			},
+			bodyContains: "xhr.send(`preexisting text`);",
+		},
+		{
 			name: "Put Binary",
 			req: &http.Request{
 				Method: http.MethodPut,
@@ -122,16 +142,20 @@ func TestPut(t *testing.T) {
 		},
 	}
 	for _, test := range tt {
+		w := httptest.NewRecorder()
 		t.Run(test.name, func(t *testing.T) {
 			i := &TestInterpreter{ReturnIsCode: test.isCode}
 			s := Service{
-				Saver:       &TestSaver{},
+				Saver: &TestSaver{
+					GiveRunnable: test.giveRunnable,
+				},
 				Interpreter: i,
 				Logger:      &TestLogger{},
 			}
-			r, err := s.Put(context.Background(), test.req)
+			r, err := s.Put(context.Background(), w, test.req)
 			assert.NoError(t, err)
 			assert.Equal(t, test.res, r)
+			assert.Contains(t, w.Body.String(), test.bodyContains)
 		})
 	}
 }

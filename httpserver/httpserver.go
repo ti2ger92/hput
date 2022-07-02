@@ -30,7 +30,7 @@ type Logger interface {
 // It should save items into from Put and output
 // results to the http.ResponseWriter on Run.
 type Service interface {
-	Put(ctx context.Context, r *http.Request) (*hput.PutResult, error)
+	Put(ctx context.Context, w http.ResponseWriter, r *http.Request) (*hput.PutResult, error)
 	Run(ctx context.Context, w http.ResponseWriter, r *http.Request) error
 }
 
@@ -94,7 +94,7 @@ func (s *Httpserver) options(w http.ResponseWriter, r *http.Request) {
 // the Service.
 func (s *Httpserver) put(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	s.Logger.Debugf("processing PUT request")
-	putResult, err := s.Service.Put(ctx, r)
+	putResult, err := s.Service.Put(ctx, w, r)
 	if err != nil {
 		s.Logger.Warnf("error PUT request, %v", err)
 		w.WriteHeader(http.StatusBadRequest)

@@ -28,7 +28,7 @@ func (t *TestLogger) Infof(msg string, args ...interface{}) {}
 
 type TestService struct{}
 
-func (t *TestService) Put(ctx context.Context, r *http.Request) (*hput.PutResult, error) {
+func (t *TestService) Put(ctx context.Context, w http.ResponseWriter, r *http.Request) (*hput.PutResult, error) {
 	p, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(fmt.Sprintf("error reading incoming payload: %v", err))

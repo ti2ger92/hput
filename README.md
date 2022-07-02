@@ -171,7 +171,6 @@ Hput limits the activities when programming for the web to http requests and res
 Web projects should be easy to start and keep the focus on your idea. Instead, web creators often have to learn to work with git, linux, apache, application servers, and language-specific frameworks before they ever visit `index.html`. Even cloud services and FaaS frameworks have their own concepts to master before you can start a project, and these become barriers of entry for people who want to create for the web that don't have much to do with creating for the web.
 
 ## Fast follow features 0.2:
-1. Output whatever you replaced if you replace something
 1. Ability to force a type of input
 1. Add logs http output
 
