@@ -14,7 +14,14 @@ import (
 
 type input string
 
-// Saver Saves stateful data for the service
+// Service handles HTTP requests and coordinates between storage and interpreter
+type Service struct {
+	Saver       Saver
+	Interpreter Interpreter
+	Logger      Logger
+}
+
+// Saver describes what Service needs from a storage backend (defined here where USED)
 type Saver interface {
 	SaveText(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
 	SaveCode(ctx context.Context, s string, p url.URL, r *hput.PutResult) error
@@ -23,24 +30,18 @@ type Saver interface {
 	SendRunnables(ctx context.Context, p string, runnables chan<- hput.Runnable, done chan<- bool) error
 }
 
-// Interpreter understands code
+// Interpreter describes what Service needs from a JavaScript runtime (defined here where USED)
 type Interpreter interface {
 	IsCode(s string) (bool, string)
 	Run(c string, r *http.Request, w http.ResponseWriter) error
 }
 
-// Logger logs out.
+// Logger describes what Service needs for logging (defined here where USED)
 type Logger interface {
 	Debug(msg string)
 	Debugf(msg string, args ...interface{})
 	Warnf(msg string, args ...interface{})
 	Errorf(msg string, args ...interface{})
-}
-
-type Service struct {
-	Saver       Saver
-	Interpreter Interpreter
-	Logger      Logger
 }
 
 var (

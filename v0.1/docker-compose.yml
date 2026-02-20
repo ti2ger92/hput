@@ -1,0 +1,9 @@
+version: "1.0"
+
+services:
+  hput:
+    build: .
+    ports:
+      - "127.0.0.1:80:80"
+    expose:
+      - "80"

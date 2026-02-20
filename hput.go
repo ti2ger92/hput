@@ -6,15 +6,20 @@ import (
 )
 
 var (
+	// ErrCannotReadPostPayload A payload was sent via POST, but it cannot be read
 	ErrCannotReadPostPayload = errors.New("cannot read POST Payload")
 )
 
+// Input describes the type of input which was sent or retrieved
 type Input string
 
 const (
-	Text   Input = "Text"
-	Js           = "Javascript"
-	Binary       = "Binary"
+	// Text means the input was plain text
+	Text Input = "Text"
+	// Js means the input can be compiled as Javascript
+	Js = "Javascript"
+	// Binary means the input is not text-like, for example an image
+	Binary = "Binary"
 )
 
 // PutResult shares the result of a save

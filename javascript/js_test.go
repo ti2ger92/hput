@@ -38,7 +38,7 @@ func Test_IsCode(t *testing.T) {
 			isCode: true,
 		},
 		{
-			name: "mutiline true",
+			name: "muti-line true",
 			code: `
 const a = 1;
 const b = 2;
@@ -49,7 +49,8 @@ a + b;
 	}
 	for _, test := range tt {
 		t.Run(test.name, func(t *testing.T) {
-			js := New(&TestLogger{})
+			js, err := New(&TestLogger{})
+			assert.NoError(t, err)
 			isCode, msg := js.IsCode(test.code)
 			assert.Equal(t, test.isCode, isCode)
 			assert.Contains(t, msg, test.msgIncludes)
@@ -184,9 +185,10 @@ func Test_Run(t *testing.T) {
 	}
 	for _, test := range tt {
 		t.Run(test.name, func(t *testing.T) {
-			js := New(&TestLogger{})
+			js, err := New(&TestLogger{})
+			assert.NoError(t, err)
 			responseRecorder := httptest.NewRecorder()
-			err := js.Run(test.code, test.r, responseRecorder)
+			err = js.Run(test.code, test.r, responseRecorder)
 			assert.NoError(t, err)
 			for _, msg := range test.msgIncludes {
 				assert.Contains(t, responseRecorder.Body.String(), msg, "body:\n%s\n\ndoes not contain:\n%s", responseRecorder.Body.String(), msg)

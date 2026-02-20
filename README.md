@@ -1,9 +1,32 @@
+Easily start for you to start your http server project. You should be able to just code "hello world" at the right path, and get started.
+
 # hput
-A standalone http server that you can program easily via http without knowing linux.
+An http server that you can program via http without console access.
 - http `PUT` web pages, text, pictures 🖼️ 🎵🎞️ or any file, then request `GET`, `POST`, `PATCH`, or `DELETE` to the same path path to get them back ✨.
 - http `PUT` javascript to a path then call that path with any other verb to run your code
   - The last line of your javascript is returned as payload.
   - node-express style `request` and `response` objects can be used to run web programs.
+
+# Demo
+You can write a simple chat app. Any new browser visiting the site can read and comment.
+Send POST to `/chat` with payload:
+```
+// output all the current comments
+  const list = await fetch('comments?list=paths', {
+            method: "GET"
+        });
+  const body = await response.json();
+  // TODO: add ?list=paths to the API, should return a json object with an array of json objects for all descendant paths. Each object should be ordered by most recent PUT, and have:
+    // a string object with the relative path
+    // a date object with the most recent PUT
+  for path in body.paths {
+    
+  }
+
+
+// script to put a new comment to the current time
+```
+
 
 ## Start
 
@@ -11,12 +34,12 @@ A standalone http server that you can program easily via http without knowing li
 You can launch the service directly with Go
 
 #### Prerequisite:
-Go v1.18
+Go v1.21
 
 #### Start:
 ```
 go mod download # gathers all dependencies
-go run main/main.go -port 80 # runs the program as an http server, 80 is the default port number
+go run cmd/hput/main.go -port=80 # runs the program as an http server, 80 is the default port number
 ```
 
 ## Start flags
@@ -77,7 +100,7 @@ basic hello world:
 <h1>hello hput</h1>
 here is some html
 ```
-html with in browser javascript:
+html with in-browser javascript:
 ```
 <html>
 <h1>hello html</h1>
@@ -116,6 +139,65 @@ The times should be the same. The first was calculated by your browser, the seco
 </script>
 ```
 
+You can use 2 hput's to expose a service. Let's build photo-sharing page.
+1. Start a data layer hput only exposed to the localhost but unlocked to store records, start it like:
+```
+go run cmd/hput/main.go -port=6000 -nonlocal=false -storage=local -locked=false -filename=data.db # Some of these are default
+```
+1. In another console window, start a service layer hput, which we will later lock, then expose to the internet.
+```
+go run cmd/hput/main.go -port=80 -nonlocal=false -storage=local -locked=false -filename=service.db # Some of these are default
+```
+1. Build an `index.html`:
+http `PUT` the below to `http://localhost/index.html`
+```
+<html>
+<h1>Upload a 📷 photo 📷 </h1>
+<input id="image" type="file" accept="image/*">
+<br>
+Caption: <input id="caption" type="text">
+<br>
+<button id="upload" onclick="uploadFile()">Upload 🤳</button>
+<h1>Other pics uploaded 🖼️ 🖼️ 🖼️</h1>
+<div id="pics"></div>
+<script>
+    async function uploadFile() {
+        let formData = new FormData(); 
+        formData.append("image", image.files[0]);
+        formData.append("text", caption.value)
+        await fetch('/upload', {
+            method: "POST", 
+            body: formData
+        }); 
+        alert('Your selfie is up. Refresh the page');
+    }
+    images = []
+    picsHtml = '<ul>'
+    fetch("/images")
+    .then(response => response.text())
+      .then((response) => {
+        images = response
+        for (const imageInfo of images) {
+            picsHtml += `<li><img src=${imageInfo.src}></img><br>${imageInfo.text}</li>`
+        }
+        picsHtml += `</ul>`
+        document.getElementById("pics").innerHTML = picsHtml
+      })
+</script>
+
+```
+1. Build a service to return the list of photos and urls:
+TODO
+1. Stop your service layer from your console window via ctrl-C, then restart it, this time locked and allowing world access:
+```
+go run cmd/hput/main.go -port=80 -nonlocal=true -storage=local -locked=true -filename=service.db # Some of these are default
+```
+1. Try uploading a photo at `localhost/index.html`, then refresh the page.
+
+See Mr. Zuckerberg, that's not so hard is it? Our example is missing a lot of things: paging, security, moderation, user metadata, etc. However we've built a distributed computing application for the web with 4 http calls and no linux commands.
+
+Want to save what you've built? Point a browser to `localhost/dump`.
+
 ## Javascript code
 Thanks to [v8go](https://github.com/rogchap/v8go), you can http `PUT` Javascript to your server.
 1. You can state a value as the last line of your program to return it via http.
@@ -149,7 +231,7 @@ Thanks to [v8go](https://github.com/rogchap/v8go), you can http `PUT` Javascript
 
 5. For example, you can set a path with PUT like this: `response.json(request)`, then visit it in your browser to get a pretty good look at the request object.
 
-## Potential use cases
+## Use cases
 - Mock server
 - Database with functional capabilities
 - Rapid prototyping
@@ -157,18 +239,27 @@ Thanks to [v8go](https://github.com/rogchap/v8go), you can http `PUT` Javascript
 - Education
 - Revolutionize the planet with your awesome idea
 
+## Projects that make this work
+I haven't connected with authors of these projects and they haven't endorsed this project, but their open tools make this project work.
+- https://github.com/rogchap/v8go
+- https://github.com/kuoruan/v8go-polyfills
+
 ## Projects that inspired me
-I haven't connected with authors of these projects and they don't endorse this project, I just dig their ideas.
+I haven't connected with authors of these projects and they haven't endorsed this project, I just dig their ideas.
 - https://glitch.com/
 - https://github.com/aol/micro-server
 - https://popcode.org/
 
 ## More about the project
-What would a web server that is as simple to program as it is to visit look like? It would start with zero config, then accept text, json, files, or code via simple http calls. You'd program this http server the same way you use it: via http commands.
+What would a web server that is as simple to program as it is to visit look like? It would start with zero required config, then accept text, json, files, or code via simple http calls. You'd program this http server the same way you visit it: via http commands.
 
-Hput limits the activities when programming for the web to http requests and responses. This way a developer doesn't need to know about the operating system, nor access the system directly to build on the server. Components of the server can be tried in real time as they are added, and developers can troubleshoot via the web. It's a server built for the cloud from the ground up.
+Hput lets you build a web application with only http calls and responses. This way, a developer doesn't need to know about the operating system, nor access the disc nor console to build on the server. Components of the server can be tried in real time as they are built, and developers can troubleshoot via clients like browsers. It's an IO model built for the cloud from the ground up.
 
-Web projects should be easy to start and keep the focus on your idea. Instead, web creators often have to learn to work with git, linux, apache, application servers, and language-specific frameworks before they ever visit `index.html`. Even cloud services and FaaS frameworks have their own concepts to master before you can start a project, and these become barriers of entry for people who want to create for the web that don't have much to do with creating for the web.
+Web projects should be easy to start and keep the focus on your idea. Instead, web creators often have to learn to work with git, linux, apache, application servers, and language-specific frameworks before they ever visit their own `index.html`. Even cloud services and FaaS frameworks have their own concepts to master before you can start a project.
+
+Hput is an an extensible, scalable platform that creators can build on with simple http `PUT` commands. Creators can add files including html, or javascript programs to run on the server.
+
+Golang was selected as a fast, secure, stable language to build the platform on. Javascript was selected as a flexible, web-friendly language that creators can build their websites in.
 
 ## Fast follow features 0.2:
 1. Ability to force a type of input

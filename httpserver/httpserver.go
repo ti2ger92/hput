@@ -109,6 +109,7 @@ func (s *Httpserver) put(ctx context.Context, w http.ResponseWriter, r *http.Req
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 	w.WriteHeader(http.StatusAccepted)
 	// Enhancement idea: convert to html with GET link
+	w.Write([]byte(putResult.Message + "\n\n"))
 	w.Write([]byte(fmt.Sprintf("Saved input of type: %s", putResult.Input)))
 }
 

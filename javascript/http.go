@@ -1,6 +1,7 @@
 package javascript
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -12,10 +13,15 @@ import (
 
 // express attaches express-compatible objects to an isolated context
 type express struct {
-	Logger Logger      // used to log out
-	RunVM  *v8.Isolate // Parent runtime VM
-	ctx    *v8.Context // isolated context where process will run
+	Logger Logger             // used to log out
+	RunVM  *v8.Isolate        // Parent runtime VM
+	Global *v8.ObjectTemplate // a global object template
+	ctx    *v8.Context        // isolated context where process will run
 }
+
+var (
+	ErrUnableToSetRequest = errors.New("unable to set request")
+)
 
 // getRequest attaches a compatible express 4.x `request` to global of context
 func (e *express) attachRequest(r *http.Request) error {
@@ -78,37 +84,41 @@ func (e *express) attachRequest(r *http.Request) error {
 	reqObj.Set("hostname", r.Host)
 	reqObj.Set("ip", r.RemoteAddr)
 	reqObj.Set("method", r.Method)
-	reqObj.Set("path", r.URL.Path)
-	reqObj.Set("protocol", strings.ToLower(r.Proto))
-	q := r.URL.Query()
-	if q != nil {
-		qObj, err := valuesMapObject(e.RunVM, e.ctx, q)
-		if err != nil {
-			e.Logger.Errorf("javascript.attachRequest(): error obtaining the incoming query: %+v", err)
-			return fmt.Errorf("could not get incoming query: %w", err)
+	if r.URL != nil {
+		reqObj.Set("path", r.URL.Path)
+		q := r.URL.Query()
+		if q != nil {
+			qObj, err := valuesMapObject(e.RunVM, e.ctx, q)
+			if err != nil {
+				e.Logger.Errorf("javascript.attachRequest(): error obtaining the incoming query: %+v", err)
+				return fmt.Errorf("could not get incoming query: %w", err)
+			}
+			reqObj.Set("query", qObj.Value)
 		}
-		reqObj.Set("query", qObj.Value)
 	}
+	reqObj.Set("protocol", strings.ToLower(r.Proto))
 	global := e.ctx.Global()
-	global.Set("request", reqObj)
+	err = global.Set("request", reqObj)
+	if err != nil {
+		e.Logger.Errorf("unable to set request: %v", err)
+		return fmt.Errorf("%w: %w", ErrUnableToSetRequest, err)
+	}
 	return nil
 }
 
 // parseComponents of a URL string
 func parseComponents(r *http.Request) []string {
+	if r.URL == nil {
+		return []string{}
+	}
 	//The URL that the user queried.
 	path := r.URL.Path
 	path = strings.TrimSpace(path)
 	//Cut off the leading and trailing forward slashes, if they exist.
 	//This cuts off the leading forward slash.
-	if strings.HasPrefix(path, "/") {
-		path = path[1:]
-	}
+	path = strings.TrimPrefix(path, "/")
 	//This cuts off the trailing forward slash.
-	if strings.HasSuffix(path, "/") {
-		cut_off_last_char_len := len(path) - 1
-		path = path[:cut_off_last_char_len]
-	}
+	path = strings.TrimSuffix(path, "/")
 	//We need to isolate the individual components of the path.
 	components := strings.Split(path, "/")
 	return components

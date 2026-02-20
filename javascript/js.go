@@ -1,9 +1,12 @@
 package javascript
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 
+	"go.kuoruan.net/v8go-polyfills/fetch"
+	"go.kuoruan.net/v8go-polyfills/timers"
 	v8 "rogchap.com/v8go"
 )
 
@@ -16,28 +19,67 @@ type Logger interface {
 
 // Javascript runs javascript.
 type Javascript struct {
-	Logger Logger      // used to log out
-	TestVM *v8.Isolate // VM used only for testing
-	RunVM  *v8.Isolate // VM used to run everyone's code
+	Logger Logger             // used to log out
+	Global *v8.ObjectTemplate // Template injected with add-ons
 }
 
+var (
+	ErrCreateIsolateRun = errors.New("Error creating an isolate while running code")
+	ErrPolyfillsInject  = errors.New("injecting a polyfill")
+	ErrFetchInject      = errors.New("injecting fetch into the context")
+	ErrTimersInject     = errors.New("injecting timers into the context")
+)
+
 // New creates a new javascript interpreter
-func New(l Logger) Javascript {
-	runVM := v8.NewIsolate()
-	return Javascript{
+func New(l Logger) (Javascript, error) {
+	global := v8.NewObjectTemplate(v8.NewIsolate())
+	v := Javascript{
 		Logger: l,
-		TestVM: v8.NewIsolate(),
-		RunVM:  runVM,
+		Global: global,
 	}
+	return v, nil
+}
+
+// isolate return an isolated runtime with needed values filled in
+func (j *Javascript) isolate() (*v8.Isolate, error) {
+	i := v8.NewIsolate()
+	if err := fetch.InjectTo(i, j.Global); err != nil {
+		j.Logger.Errorf("Unable to inject the fetch polyfill to runVM: %v", err)
+		return nil, fmt.Errorf("%w: %w: %w", ErrPolyfillsInject, ErrFetchInject, err)
+	}
+	if err := timers.InjectTo(i, j.Global); err != nil {
+		j.Logger.Errorf("Unable to inject the timers polyfill to runVM: %v", err)
+		return nil, fmt.Errorf("%w: %w, %w", ErrPolyfillsInject, nil, err)
+	}
+	return i, nil
 }
 
 // IsCode tells whether the string is valid javascript code and returns a message why it is not
 func (j *Javascript) IsCode(s string) (bool, string) {
 	// attempt to compile for testing only, incoming source
 	j.Logger.Debugf("testing code: %s", s)
-	if _, err := j.TestVM.CompileUnboundScript(s, "your_input", v8.CompileOptions{}); err != nil {
-		msg := "I think this is not javascript, so we'll treat it as text.\n"
-		msg = msg + fmt.Sprintf("If this were javascript, the error would be: %+v", err)
+	iso, err := j.isolate()
+	if err != nil {
+		return false, fmt.Sprintf("Could not create an isolated runtime for this process: %v", err)
+	}
+	ctx := v8.NewContext(iso, j.Global)
+	exp := express{
+		Logger: j.Logger,
+		RunVM:  iso,
+		ctx:    ctx,
+		Global: j.Global,
+	}
+	if err = exp.attachRequest(new(http.Request)); err != nil {
+		return false, fmt.Sprintf("Could not add a request object to the context %v", err)
+	}
+	err = exp.attachResponse(nil)
+	if err != nil {
+		j.Logger.Errorf("Could not attach a response to the object")
+		return false, fmt.Sprintf("could not set the script response object: %v", err)
+	}
+	if _, err := ctx.Isolate().CompileUnboundScript(s, "your_input", v8.CompileOptions{}); err != nil {
+		msg := "I think this is not javascript, so I'll treat it as text.\n"
+		msg = msg + fmt.Sprintf("If this were javascript, the error would be: %v", err)
 		return false, msg
 	}
 	return true, ""
@@ -50,26 +92,30 @@ func (j *Javascript) IsCode(s string) (bool, string) {
 // response: has express functions for: append, cookie, json, location, redirect, sendStatus, set, status
 func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error {
 	j.Logger.Debugf("Running code: %s", c)
-	ctx := v8.NewContext(j.RunVM)
+	iso, err := j.isolate()
+	if err != nil {
+		return fmt.Errorf("%w, %w", ErrCreateIsolateRun, err)
+	}
+	ctx := v8.NewContext(iso, j.Global)
 	defer ctx.Close()
 	exp := express{
 		Logger: j.Logger,
-		RunVM:  j.RunVM,
+		RunVM:  iso,
 		ctx:    ctx,
+		Global: j.Global,
 	}
-	err := exp.attachRequest(r)
-	if err != nil {
+	if err = exp.attachRequest(r); err != nil {
 		j.Logger.Errorf("Could not add a request object to the context %+v", err)
 		return fmt.Errorf("could not set the script request object: %w", err)
 	}
-	err = exp.attachResponse(w)
-	if err != nil {
+	if err = exp.attachResponse(w); err != nil {
 		j.Logger.Errorf("Could not attach a response to the object")
 		return fmt.Errorf("could not set the script response object: %w", err)
 	}
 	// Add a console.log capability
-	console := v8.NewObjectTemplate(j.RunVM)
-	logFn := v8.NewFunctionTemplate(j.RunVM, func(info *v8.FunctionCallbackInfo) *v8.Value {
+	// FIXME: move this to new()
+	console := v8.NewObjectTemplate(iso)
+	logFn := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
 		if len(info.Args()) != 1 {
 			panic("Provide exactly 1 argument")
 		}
