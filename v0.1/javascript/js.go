@@ -4,10 +4,11 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
-	"go.kuoruan.net/v8go-polyfills/fetch"
-	"go.kuoruan.net/v8go-polyfills/timers"
-	v8 "rogchap.com/v8go"
+	"hput/internal/polyfills"
+
+	v8 "github.com/tommie/v8go"
 )
 
 // Logger logs out.
@@ -19,8 +20,7 @@ type Logger interface {
 
 // Javascript runs javascript.
 type Javascript struct {
-	Logger Logger             // used to log out
-	Global *v8.ObjectTemplate // Template injected with add-ons
+	Logger Logger
 }
 
 var (
@@ -32,52 +32,32 @@ var (
 
 // New creates a new javascript interpreter
 func New(l Logger) (Javascript, error) {
-	global := v8.NewObjectTemplate(v8.NewIsolate())
-	v := Javascript{
-		Logger: l,
-		Global: global,
-	}
-	return v, nil
+	return Javascript{Logger: l}, nil
 }
 
-// isolate return an isolated runtime with needed values filled in
-func (j *Javascript) isolate() (*v8.Isolate, error) {
-	i := v8.NewIsolate()
-	if err := fetch.InjectTo(i, j.Global); err != nil {
-		j.Logger.Errorf("Unable to inject the fetch polyfill to runVM: %v", err)
-		return nil, fmt.Errorf("%w: %w: %w", ErrPolyfillsInject, ErrFetchInject, err)
+// newContext creates a fresh isolate, context, and event loop with polyfills injected.
+func (j *Javascript) newContext() (*v8.Isolate, *v8.Context, *polyfills.EventLoop, error) {
+	iso := v8.NewIsolate()
+	ctx := v8.NewContext(iso)
+	el := polyfills.NewEventLoop()
+
+	if err := polyfills.InjectFetch(iso, ctx); err != nil {
+		ctx.Close()
+		return nil, nil, nil, fmt.Errorf("%w: %w: %w", ErrPolyfillsInject, ErrFetchInject, err)
 	}
-	if err := timers.InjectTo(i, j.Global); err != nil {
-		j.Logger.Errorf("Unable to inject the timers polyfill to runVM: %v", err)
-		return nil, fmt.Errorf("%w: %w, %w", ErrPolyfillsInject, nil, err)
+	if err := polyfills.InjectTimers(iso, ctx, el); err != nil {
+		ctx.Close()
+		return nil, nil, nil, fmt.Errorf("%w: %w", ErrPolyfillsInject, ErrTimersInject)
 	}
-	return i, nil
+	return iso, ctx, el, nil
 }
 
 // IsCode tells whether the string is valid javascript code and returns a message why it is not
 func (j *Javascript) IsCode(s string) (bool, string) {
-	// attempt to compile for testing only, incoming source
 	j.Logger.Debugf("testing code: %s", s)
-	iso, err := j.isolate()
-	if err != nil {
-		return false, fmt.Sprintf("Could not create an isolated runtime for this process: %v", err)
-	}
-	ctx := v8.NewContext(iso, j.Global)
-	exp := express{
-		Logger: j.Logger,
-		RunVM:  iso,
-		ctx:    ctx,
-		Global: j.Global,
-	}
-	if err = exp.attachRequest(new(http.Request)); err != nil {
-		return false, fmt.Sprintf("Could not add a request object to the context %v", err)
-	}
-	err = exp.attachResponse(nil)
-	if err != nil {
-		j.Logger.Errorf("Could not attach a response to the object")
-		return false, fmt.Sprintf("could not set the script response object: %v", err)
-	}
-	if _, err := ctx.Isolate().CompileUnboundScript(s, "your_input", v8.CompileOptions{}); err != nil {
+	iso := v8.NewIsolate()
+	defer iso.Dispose()
+	if _, err := iso.CompileUnboundScript(s, "your_input", v8.CompileOptions{}); err != nil {
 		msg := "I think this is not javascript, so I'll treat it as text.\n"
 		msg = msg + fmt.Sprintf("If this were javascript, the error would be: %v", err)
 		return false, msg
@@ -86,23 +66,25 @@ func (j *Javascript) IsCode(s string) (bool, string) {
 }
 
 // Run runs the javascript at a location and writes results to the response.
-// Adds objects to the global context
+// Adds objects to the global context:
 // console.log logs out at INFO level
 // request: has express fields for: body, cookies, hostname, ip, method, path, protocol, query
 // response: has express functions for: append, cookie, json, location, redirect, sendStatus, set, status
+// fetch: standard fetch API
+// setTimeout/setInterval/clearTimeout/clearInterval: timer APIs
 func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error {
 	j.Logger.Debugf("Running code: %s", c)
-	iso, err := j.isolate()
+
+	iso, ctx, el, err := j.newContext()
 	if err != nil {
 		return fmt.Errorf("%w, %w", ErrCreateIsolateRun, err)
 	}
-	ctx := v8.NewContext(iso, j.Global)
 	defer ctx.Close()
+
 	exp := express{
 		Logger: j.Logger,
 		RunVM:  iso,
 		ctx:    ctx,
-		Global: j.Global,
 	}
 	if err = exp.attachRequest(r); err != nil {
 		j.Logger.Errorf("Could not add a request object to the context %+v", err)
@@ -112,35 +94,57 @@ func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error
 		j.Logger.Errorf("Could not attach a response to the object")
 		return fmt.Errorf("could not set the script response object: %w", err)
 	}
-	// Add a console.log capability
-	// FIXME: move this to new()
+
 	console := v8.NewObjectTemplate(iso)
 	logFn := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
-		if len(info.Args()) != 1 {
-			panic("Provide exactly 1 argument")
+		args := info.Args()
+		parts := make([]string, len(args))
+		for i, a := range args {
+			parts[i] = a.String()
 		}
-		value := info.Args()[0].String()
-		j.Logger.Infof(value)
+		j.Logger.Infof("%s", joinStrings(parts))
 		return nil
 	})
 	console.Set("log", logFn)
 	consoleObj, err := console.NewInstance(ctx)
 	if err != nil {
-		j.Logger.Errorf("javascript.Run(): failure creating console object: %+v", err)
 		return fmt.Errorf("failure creating console object: %w", err)
 	}
-	global := ctx.Global()
-	global.Set("console", consoleObj)
+	ctx.Global().Set("console", consoleObj)
+
 	val, err := ctx.RunScript(c, "your_function")
 	if err != nil {
 		j.Logger.Errorf("Got an error running the script: %+v", err)
 		return fmt.Errorf("got an error running the script: %w", err)
 	}
+
+	// Drain microtasks so any awaited Promises settle.
+	ctx.PerformMicrotaskCheckpoint()
+
+	// If the script returned a Promise, wait for it to resolve.
+	if val != nil && val.IsPromise() {
+		promise, _ := val.AsPromise()
+		deadline := time.Now().Add(30 * time.Second)
+		for promise.State() == v8.Pending && time.Now().Before(deadline) {
+			el.Drain(iso, ctx, deadline)
+			ctx.PerformMicrotaskCheckpoint()
+		}
+		if promise.State() == v8.Rejected {
+			return fmt.Errorf("script promise rejected: %s", promise.Result().String())
+		}
+		val = promise.Result()
+	}
+
+	// Drain any remaining timers.
+	el.Drain(iso, ctx, time.Now().Add(30*time.Second))
+
+	if val == nil {
+		return nil
+	}
 	if val.IsObject() {
 		j.Logger.Debugf("response was object")
 		bytes, err := val.MarshalJSON()
 		if err != nil {
-			j.Logger.Errorf("Got an error outputting the string of a json response")
 			return fmt.Errorf("got an error outputting the string of a json response: %w", err)
 		}
 		w.Write(bytes)
@@ -149,6 +153,17 @@ func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error
 		w.Write([]byte(val.String()))
 	}
 	return nil
+}
+
+func joinStrings(parts []string) string {
+	result := ""
+	for i, p := range parts {
+		if i > 0 {
+			result += " "
+		}
+		result += p
+	}
+	return result
 }
 
 // cookiesToValue convert an incoming cookie to the expected express cookie
@@ -175,27 +190,21 @@ func valuesMapObject(vm *v8.Isolate, ctx *v8.Context, aMap map[string][]string) 
 		}
 		obj.Set(key, strArr.Value)
 	}
-
 	return obj, nil
 }
 
 // strArrayObject create a string array from object
 func strArrayObject(ctx *v8.Context, arr []string) (*v8.Object, error) {
-	// TODO: compile this
 	arrayValue, err := ctx.RunScript("[]", "new_array")
 	if err != nil {
 		return nil, fmt.Errorf("could not create initial array value %w", err)
 	}
 	obj := arrayValue.Object()
-
-	err = obj.Set("length", int32(len(arr)))
-	if err != nil {
+	if err = obj.Set("length", int32(len(arr))); err != nil {
 		return nil, fmt.Errorf("could not set length of array object %w", err)
 	}
-
 	for i, str := range arr {
 		obj.SetIdx(uint32(i), str)
 	}
-
 	return obj, nil
 }

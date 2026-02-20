@@ -8,15 +8,14 @@ import (
 	"strings"
 	"time"
 
-	v8 "rogchap.com/v8go"
+	v8 "github.com/tommie/v8go"
 )
 
 // express attaches express-compatible objects to an isolated context
 type express struct {
-	Logger Logger             // used to log out
-	RunVM  *v8.Isolate        // Parent runtime VM
-	Global *v8.ObjectTemplate // a global object template
-	ctx    *v8.Context        // isolated context where process will run
+	Logger Logger      // used to log out
+	RunVM  *v8.Isolate // Parent runtime VM
+	ctx    *v8.Context // isolated context where process will run
 }
 
 var (

@@ -8,10 +8,9 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.95.0
 	github.com/aws/aws-sdk-go-v2/service/sso v1.30.8
 	github.com/stretchr/testify v1.10.0
+	github.com/tommie/v8go v0.34.0
 	go.etcd.io/bbolt v1.4.3
-	go.kuoruan.net/v8go-polyfills v0.5.0
 	go.uber.org/zap v1.27.1
-	rogchap.com/v8go v0.9.0
 )
 
 require (
@@ -32,6 +31,12 @@ require (
 	github.com/aws/smithy-go v1.24.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
+	github.com/tommie/v8go/deps/android_amd64 v0.0.0-20250515043113-5dcc98077472 // indirect
+	github.com/tommie/v8go/deps/android_arm64 v0.0.0-20250515043113-5dcc98077472 // indirect
+	github.com/tommie/v8go/deps/darwin_amd64 v0.0.0-20250515043113-5dcc98077472 // indirect
+	github.com/tommie/v8go/deps/darwin_arm64 v0.0.0-20250515043113-5dcc98077472 // indirect
+	github.com/tommie/v8go/deps/linux_amd64 v0.0.0-20250515043113-5dcc98077472 // indirect
+	github.com/tommie/v8go/deps/linux_arm64 v0.0.0-20250515043113-5dcc98077472 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/sys v0.39.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
