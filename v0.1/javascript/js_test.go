@@ -2,6 +2,8 @@ package javascript
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -56,6 +58,35 @@ a + b;
 			assert.Contains(t, msg, test.msgIncludes)
 		})
 	}
+}
+
+// Test_Fetch verifies that the JS fetch() polyfill actually makes HTTP requests
+// and returns the response body to the script. Uses a local httptest.Server so
+// no external network is required.
+func Test_Fetch(t *testing.T) {
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]string{"message": "fetch works"})
+	}))
+	defer backend.Close()
+
+	js, err := New(&TestLogger{})
+	assert.NoError(t, err)
+
+	code := fmt.Sprintf(`
+async function main() {
+	const r = await fetch('%s');
+	const j = await r.json();
+	response.send(j.message);
+}
+main();
+`, backend.URL)
+
+	req := &http.Request{Method: http.MethodGet, URL: &url.URL{Path: "/test"}}
+	rec := httptest.NewRecorder()
+	err = js.Run(code, req, rec)
+	assert.NoError(t, err)
+	assert.Contains(t, rec.Body.String(), "fetch works")
 }
 
 // Test_IsCode verifies that IsCode runs as expected
