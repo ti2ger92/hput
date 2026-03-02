@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"hput"
+	"hput/kv"
 	"io"
 	"math"
 	"net/http"
@@ -18,6 +19,7 @@ type input string
 type Service struct {
 	Saver       Saver
 	Interpreter Interpreter
+	KV          kv.KV
 	Logger      Logger
 }
 
@@ -33,7 +35,7 @@ type Saver interface {
 // Interpreter describes what Service needs from a JavaScript runtime (defined here where USED)
 type Interpreter interface {
 	IsCode(s string) (bool, string)
-	Run(c string, r *http.Request, w http.ResponseWriter) error
+	Run(c string, r *http.Request, w http.ResponseWriter, store kv.KV) error
 }
 
 // Logger describes what Service needs for logging (defined here where USED)
@@ -144,7 +146,7 @@ func (s *Service) Run(ctx context.Context, w http.ResponseWriter, r *http.Reques
 		return nil
 	case hput.Js:
 		s.Logger.Debugf("processing RUN service got javascript, %s", runnable.Text)
-		err := s.Interpreter.Run(string(runnable.Text), r, w)
+		err := s.Interpreter.Run(string(runnable.Text), r, w, s.KV)
 		if err != nil {
 			s.Logger.Debugf("got an error running JS: %+v", err)
 			return err

@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"hput"
+	"hput/kv"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -59,7 +60,7 @@ func (t *TestInterpreter) IsCode(s string) (bool, string) {
 	return t.ReturnIsCode, "Preset"
 }
 
-func (t *TestInterpreter) Run(c string, r *http.Request, w http.ResponseWriter) error {
+func (t *TestInterpreter) Run(c string, r *http.Request, w http.ResponseWriter, store kv.KV) error {
 	w.Write([]byte(fmt.Sprintf("Interpreter Ran %s", c)))
 	return nil
 }

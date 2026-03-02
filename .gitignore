@@ -1,5 +1,6 @@
+/hput
 hput.db
+hput-kv.db
 launch.json
 settings.json
 .DS_Store
-main/mainhput

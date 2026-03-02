@@ -85,7 +85,7 @@ main();
 
 	req := &http.Request{Method: http.MethodGet, URL: &url.URL{Path: "/test"}}
 	rec := httptest.NewRecorder()
-	err = js.Run(code, req, rec)
+	err = js.Run(code, req, rec, nil)
 	assert.NoError(t, err)
 	assert.Contains(t, rec.Body.String(), "fetch works")
 }
@@ -220,7 +220,7 @@ func Test_Run(t *testing.T) {
 			js, err := New(&TestLogger{})
 			assert.NoError(t, err)
 			responseRecorder := httptest.NewRecorder()
-			err = js.Run(test.code, test.r, responseRecorder)
+			err = js.Run(test.code, test.r, responseRecorder, nil)
 			assert.NoError(t, err)
 			for _, msg := range test.msgIncludes {
 				assert.Contains(t, responseRecorder.Body.String(), msg, "body:\n%s\n\ndoes not contain:\n%s", responseRecorder.Body.String(), msg)

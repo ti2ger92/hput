@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"hput/internal/polyfills"
+	"hput/kv"
 
 	v8 "github.com/tommie/v8go"
 )
@@ -28,6 +29,7 @@ var (
 	ErrPolyfillsInject  = errors.New("injecting a polyfill")
 	ErrFetchInject      = errors.New("injecting fetch into the context")
 	ErrTimersInject     = errors.New("injecting timers into the context")
+	ErrHputInject       = errors.New("injecting hput into the context")
 )
 
 // New creates a new javascript interpreter
@@ -72,7 +74,8 @@ func (j *Javascript) IsCode(s string) (bool, string) {
 // response: has express functions for: append, cookie, json, location, redirect, sendStatus, set, status
 // fetch: standard fetch API
 // setTimeout/setInterval/clearTimeout/clearInterval: timer APIs
-func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error {
+// hput: per-path private KV store (get, put, delete, list)
+func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter, store kv.KV) error {
 	j.Logger.Debugf("Running code: %s", c)
 
 	iso, ctx, el, err := j.newContext()
@@ -93,6 +96,13 @@ func (j *Javascript) Run(c string, r *http.Request, w http.ResponseWriter) error
 	if err = exp.attachResponse(w); err != nil {
 		j.Logger.Errorf("Could not attach a response to the object")
 		return fmt.Errorf("could not set the script response object: %w", err)
+	}
+
+	if store != nil {
+		if err = attachHput(r.Context(), iso, ctx, r.URL.Path, store); err != nil {
+			j.Logger.Errorf("Could not attach hput to the context: %+v", err)
+			return fmt.Errorf("%w: %w", ErrHputInject, err)
+		}
 	}
 
 	console := v8.NewObjectTemplate(iso)

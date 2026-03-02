@@ -7,6 +7,7 @@ import (
 	"hput/discsaver"
 	"hput/httpserver"
 	"hput/javascript"
+	"hput/kv"
 	"hput/logger"
 	"hput/mapsaver"
 	"hput/s3saver"
@@ -23,6 +24,8 @@ func main() {
 	logLvlPtr := flag.String("log", "info", "which log level to use, options are: debug, info, warn, error")
 	bucketPtr := flag.String("bucket", "", "if using s3 storage, the bucket to use")
 	prefixPtr := flag.String("prefix", "", "if using s3 storage, the prefix to use")
+	kvBackendPtr := flag.String("kv-backend", "bbolt", "which KV backend to use for JS private storage, currently supported: bbolt")
+	kvFilePtr := flag.String("kv-file", "hput-kv.db", "if using bbolt KV backend, name of the database file to create and use")
 	flag.Parse()
 
 	l, err := logger.New(*logLvlPtr)
@@ -52,6 +55,20 @@ func main() {
 	default:
 		l.Errorf("main.Main(): incorrect storage parameter passed, use 'local' or 'memory'")
 	}
+	var kvStore kv.KV
+	switch *kvBackendPtr {
+	case "bbolt":
+		kvStore, err = kv.NewBbolt(*kvFilePtr)
+		if err != nil {
+			l.Errorf("main.Main(): could not initialize bbolt KV store: %v", err)
+			return
+		}
+		l.Debugf("Initialized bbolt KV store at %s", *kvFilePtr)
+	default:
+		l.Errorf("main.Main(): unknown kv-backend %q, supported: bbolt", *kvBackendPtr)
+		return
+	}
+
 	js, err := javascript.New(&l)
 	if err != nil {
 		l.Errorf("Unable to initialize Javascript: %v", err)
@@ -61,6 +78,7 @@ func main() {
 	s := service.Service{
 		Interpreter: &js,
 		Saver:       saver,
+		KV:          kvStore,
 		Logger:      &l,
 	}
 	l.Debug("Initialized service module")
